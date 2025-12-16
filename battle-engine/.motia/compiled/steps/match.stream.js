@@ -1,0 +1,17 @@
+import { z } from "zod";
+const config = {
+  name: "match",
+  // This allows context.streams.match
+  schema: z.object({
+    type: z.string(),
+    startTime: z.number().optional(),
+    winner: z.string().optional(),
+    error: z.string().optional(),
+    msg: z.string().optional()
+  }),
+  baseConfig: { storageType: "default" }
+};
+export {
+  config
+};
+//# sourceMappingURL=data:application/json;base64,ewogICJ2ZXJzaW9uIjogMywKICAic291cmNlcyI6IFsiLi4vLi4vLi4vc3RlcHMvbWF0Y2guc3RyZWFtLnRzIl0sCiAgInNvdXJjZXNDb250ZW50IjogWyJpbXBvcnQgeyBTdHJlYW1Db25maWcgfSBmcm9tICdtb3RpYSc7XHJcbmltcG9ydCB7IHogfSBmcm9tICd6b2QnO1xyXG5cclxuZXhwb3J0IGNvbnN0IGNvbmZpZzogU3RyZWFtQ29uZmlnID0ge1xyXG4gIG5hbWU6ICdtYXRjaCcsIC8vIFRoaXMgYWxsb3dzIGNvbnRleHQuc3RyZWFtcy5tYXRjaFxyXG4gIHNjaGVtYTogei5vYmplY3Qoe1xyXG4gICAgdHlwZTogei5zdHJpbmcoKSxcclxuICAgIHN0YXJ0VGltZTogei5udW1iZXIoKS5vcHRpb25hbCgpLFxyXG4gICAgd2lubmVyOiB6LnN0cmluZygpLm9wdGlvbmFsKCksXHJcbiAgICBlcnJvcjogei5zdHJpbmcoKS5vcHRpb25hbCgpLFxyXG4gICAgbXNnOiB6LnN0cmluZygpLm9wdGlvbmFsKClcclxuICB9KSxcclxuICBiYXNlQ29uZmlnOiB7IHN0b3JhZ2VUeXBlOiAnZGVmYXVsdCcgfVxyXG59OyJdLAogICJtYXBwaW5ncyI6ICJBQUNBLFNBQVMsU0FBUztBQUVYLE1BQU0sU0FBdUI7QUFBQSxFQUNsQyxNQUFNO0FBQUE7QUFBQSxFQUNOLFFBQVEsRUFBRSxPQUFPO0FBQUEsSUFDZixNQUFNLEVBQUUsT0FBTztBQUFBLElBQ2YsV0FBVyxFQUFFLE9BQU8sRUFBRSxTQUFTO0FBQUEsSUFDL0IsUUFBUSxFQUFFLE9BQU8sRUFBRSxTQUFTO0FBQUEsSUFDNUIsT0FBTyxFQUFFLE9BQU8sRUFBRSxTQUFTO0FBQUEsSUFDM0IsS0FBSyxFQUFFLE9BQU8sRUFBRSxTQUFTO0FBQUEsRUFDM0IsQ0FBQztBQUFBLEVBQ0QsWUFBWSxFQUFFLGFBQWEsVUFBVTtBQUN2QzsiLAogICJuYW1lcyI6IFtdCn0K

@@ -1,0 +1,12 @@
+const PROBLEMS = {
+  "fibonacci": {
+    description: "Write a function that prints 'hello world'",
+    testCases: [
+      { input: "", output: ["hello world"] }
+    ]
+  }
+};
+export {
+  PROBLEMS
+};
+//# sourceMappingURL=data:application/json;base64,ewogICJ2ZXJzaW9uIjogMywKICAic291cmNlcyI6IFsiLi4vLi4vLi4vc3JjL3Byb2JsZW1zLnRzIl0sCiAgInNvdXJjZXNDb250ZW50IjogWyJleHBvcnQgaW50ZXJmYWNlIFRlc3RDYXNlIHtcclxuICBpbnB1dDogc3RyaW5nO1xyXG4gIG91dHB1dDogc3RyaW5nW107XHJcbn1cclxuXHJcbmV4cG9ydCBjb25zdCBQUk9CTEVNUzogUmVjb3JkPHN0cmluZywgeyBkZXNjcmlwdGlvbjogc3RyaW5nLCB0ZXN0Q2FzZXM6IFRlc3RDYXNlW10gfT4gPSB7XHJcbiAgXCJmaWJvbmFjY2lcIjoge1xyXG4gICAgZGVzY3JpcHRpb246IFwiV3JpdGUgYSBmdW5jdGlvbiB0aGF0IHByaW50cyAnaGVsbG8gd29ybGQnXCIsXHJcbiAgICB0ZXN0Q2FzZXM6IFtcclxuICAgICAgeyBpbnB1dDogXCJcIiwgb3V0cHV0OiBbXCJoZWxsbyB3b3JsZFwiXSB9IFxyXG4gICAgXVxyXG4gIH1cclxufTsiXSwKICAibWFwcGluZ3MiOiAiQUFLTyxNQUFNLFdBQTJFO0FBQUEsRUFDdEYsYUFBYTtBQUFBLElBQ1gsYUFBYTtBQUFBLElBQ2IsV0FBVztBQUFBLE1BQ1QsRUFBRSxPQUFPLElBQUksUUFBUSxDQUFDLGFBQWEsRUFBRTtBQUFBLElBQ3ZDO0FBQUEsRUFDRjtBQUNGOyIsCiAgIm5hbWVzIjogW10KfQo=

@@ -8,10 +8,11 @@ import { EventHandler, ApiRouteHandler, ApiResponse, MotiaStream, CronHandler } 
 
 declare module 'motia' {
   interface FlowContextStateStreams {
-    'match': MotiaStream<{ type: string; startTime?: number; winner?: string; error?: string; msg?: string }>
+    'match': MotiaStream<{ type: string; startTime?: number; endTime?: number; winner?: string; error?: string; msg?: string }>
   }
 
   interface Handlers {
+    'MatchStatusAPI': ApiRouteHandler<Record<string, unknown>, unknown, never>
     'MatchExpiryJob': CronHandler<never>
     'MatchAPI': ApiRouteHandler<Record<string, unknown>, unknown, { topic: 'player.joined'; data: never } | { topic: 'run.code'; data: never }>
     'GameEngine': EventHandler<never, never>

@@ -3,6 +3,7 @@ import { connectDB } from '../src/db';
 import { MatchModel } from '../src/models/Match';
 import { RunnerRequest, RunnerResult } from '../src/types';
 import Question from '../src/models/Question';
+import { languages } from '../src/utils/lang';
 
 export const config: StepConfig = {
   name: 'CodeRunner',
@@ -20,68 +21,86 @@ enum Verdict {
 }
 
 export const handler = async (event: any, { emit, logger }: any) => {
-  await connectDB(); // Must connect since we query DB now
+  await connectDB();
 
   const data = (event.data || event) as RunnerRequest & { language?: string, version?: string };
   const { matchId, playerId, code, action, language = "python", version = "3.10.0" } = data;
 
-  let success = true;
+  let overallSuccess = true;
   let errorMsg = undefined;
+  
+  const testResults: any[] = [];
 
   try {
-    // 1. Find the Problem ID from the Match
     const match = await MatchModel.findOne({ matchId });
     if (!match) throw new Error("Match not found");
 
-    // 2. Fetch the Question and Test Cases
     const question = await Question.findById(match.problemId);
     if (!question) throw new Error("Question not found");
 
-    logger.info(`⚖️ JUDGE: Evaluator started for ${playerId} on '${question.title}' (${question.test_cases.length} cases)`);
+    let casesToRun = question.test_cases;
+    
+    if (action === 'RUN_TESTS') {
+        const limit = Math.ceil(casesToRun.length * 0.25) || 1; 
+        casesToRun = casesToRun.slice(0, limit);
+        logger.info(`JUDGE: Running subset (${limit}/${question.test_cases.length}) for ${playerId}`);
+    } else {
+        logger.info(`JUDGE: Running ALL (${casesToRun.length}) for ${playerId} submission`);
+    }
 
-    // 3. Run Test Cases
-    for (let i = 0; i < question.test_cases.length; i++) {
-        const testCase = question.test_cases[i];
+    for (let i = 0; i < casesToRun.length; i++) {
+        const testCase = casesToRun[i];
         
-        // Helper function to call Piston
-        const result = await runPiston(code, language, version, testCase);
+        // Pass logger to runPiston so we can see logs in the Workbench
+        const result = await runPiston(code, language, version, testCase, logger);
+
+        const caseResult = {
+            id: i + 1,
+            input: testCase.input,
+            expected: testCase.output,
+            actual: result.output || result.stderr,
+            status: result.status,
+            passed: result.status === Verdict.ACCEPTED
+        };
+        
+        testResults.push(caseResult);
 
         if (result.status !== Verdict.ACCEPTED) {
-            success = false;
-            errorMsg = `Test Case ${i + 1} Failed: ${result.status}`;
-            if (result.output) errorMsg += ` (Output: ${result.output})`;
-            if (result.stderr) errorMsg += ` (Error: ${result.stderr})`;
-            
-            logger.warn(`❌ ${playerId}: ${errorMsg}`);
-            break; 
+            overallSuccess = false;
+            if (result.status === Verdict.COMPILE_ERROR) {
+                errorMsg = result.stderr;
+                break; 
+            }
         }
     }
 
   } catch (err: any) {
-    success = false;
+    overallSuccess = false;
     errorMsg = `System Error: ${err.message}`;
     logger.error(errorMsg);
   }
 
-  logger.info(`⚖️ VERDICT for ${playerId}: ${success ? "PASSED ALL" : "FAILED"}`);
-
-  // 4. Report Result
-  const resultData: RunnerResult = {
+  const resultData = {
     matchId,
     playerId,
     action: action as 'RUN_TESTS' | 'SUBMIT_SOLUTION',
-    success,
-    error: errorMsg
+    success: overallSuccess && !errorMsg,
+    error: errorMsg,
+    results: testResults
   };
 
+  logger.info(`VERDICT for ${playerId}: ${resultData.success ? "PASSED" : "FAILED"}`);
   await emit({ topic: 'code.processed', data: resultData });
 };
 
-// --- Piston Helper ---
-async function runPiston(code: string, language: string, version: string, testCase: any) {
+// 👇 UPDATED: Added logger parameter and detailed error logging
+async function runPiston(code: string, language: string, version: string, testCase: any, logger?: any) {
+    const pistonLang = languages.find((lang)=>lang.pistonLang == language)?.pistonLang
+    const ver = languages.find((lang)=>lang.pistonLang == language)?.version;
+
     const payload = {
-        language,
-        version,
+        language: pistonLang,
+        version: ver || "*", // Piston often fails if version doesn't match exactly, '*' is safer
         files: [{ name: 'main', content: code }],
         stdin: testCase.input,
         run_timeout: 3000,
@@ -94,15 +113,34 @@ async function runPiston(code: string, language: string, version: string, testCa
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
         });
+
+        // 1. Check if HTTP Request failed (e.g. 400 Bad Request, 500 Server Error)
+        if (!response.ok) {
+            const text = await response.text();
+            if (logger) logger.error(`PISTON HTTP ERROR ${response.status}: ${text}`);
+            return { status: Verdict.RUNTIME_ERROR, stderr: `API HTTP ${response.status}: ${text}` };
+        }
+
         const data: any = await response.json();
 
-        if (data.compile && data.compile.code !== 0) return { status: Verdict.COMPILE_ERROR, stderr: data.compile.stderr };
-        if (data.run && data.run.code !== 0) return { status: Verdict.RUNTIME_ERROR, stderr: data.run.stderr };
+        // 2. Check for Piston-specific error structure
+        if (data.message) {
+             if (logger) logger.error("PISTON ERROR MESSAGE:", data.message);
+             return { status: Verdict.RUNTIME_ERROR, stderr: data.message };
+        }
+
+        if (data.compile && data.compile.code !== 0) {
+            return { status: Verdict.COMPILE_ERROR, stderr: data.compile.stderr };
+        }
+        
+        if (data.run && data.run.code !== 0) {
+            // Signal code is killed or exited with error
+            return { status: Verdict.RUNTIME_ERROR, stderr: data.run.stderr || `Exited with code ${data.run.code}` };
+        }
 
         const actual = (data.run.stdout || "").trim();
         const expected = testCase.output.map((o: string) => o.trim());
         
-        // Check if output matches ANY of the valid outputs
         const isCorrect = expected.includes(actual);
         
         return { 
@@ -110,7 +148,12 @@ async function runPiston(code: string, language: string, version: string, testCa
             output: actual 
         };
 
-    } catch (e) {
-        return { status: Verdict.RUNTIME_ERROR, stderr: "API Fail" };
+    } catch (e: any) {
+        if (logger) {
+            logger.error("PISTON EXCEPTION:", e.message);
+            // Log payload to see what broke it
+            logger.error("Payload sent:", JSON.stringify(payload));
+        }
+        return { status: Verdict.RUNTIME_ERROR, stderr: `API Exception: ${e.message}` };
     }
 }

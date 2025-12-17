@@ -5,28 +5,26 @@ import { MatchModel } from '../src/models/Match';
 export const config: CronConfig = {
   name: 'MatchExpiryJob',
   type: 'cron',
-  cron: '*/1 * * * *', // Every minute
+  cron: '*/1 * * * *',
   flows: ['CodeDuelFlow'],
   emits: []
 };
 
 export const handler = async ({ logger, streams }: any) => {
-  // 1. HEARTBEAT LOG: Proves the cron is triggering
-  logger.info("⏰ CRON HEARTBEAT: Checking for expired matches...");
+  logger.info("CRON HEARTBEAT: Checking for expired matches...");
 
   await connectDB();
   const now = Date.now();
 
-  // Find all matches that are STILL RACING but have passed their endTime
   const expiredMatches = await MatchModel.find({
       status: 'RACING',
       endTime: { $lt: now } 
   });
 
   if (expiredMatches.length > 0) {
-      logger.info(`💀 Found ${expiredMatches.length} matches to expire.`);
+      logger.info(`Found ${expiredMatches.length} matches to expire.`);
   } else {
-      logger.info("✅ No expired matches found.");
+      logger.info("No expired matches found.");
   }
 
   for (const match of expiredMatches) {
@@ -34,7 +32,7 @@ export const handler = async ({ logger, streams }: any) => {
       match.winnerId = null; 
       await match.save();
       
-      logger.info(`🛑 Expiring Match: ${match.matchId}`);
+      logger.info(`Expiring Match: ${match.matchId}`);
       
       if (streams.match) {
           await streams.match.set(match.matchId, 'message', { 

@@ -30,6 +30,10 @@
       "steps\\code-runner.step.ts": {
         "x": -130,
         "y": 194
+      },
+      "steps\\.motia\\compiled\\code-runner.step.js": {
+        "x": 0,
+        "y": 0
       }
     }
   }

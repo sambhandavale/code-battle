@@ -20,6 +20,8 @@ enum Verdict {
   RUNTIME_ERROR = "Runtime Error",
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export const handler = async (event: any, { emit, logger }: any) => {
   await connectDB();
 
@@ -71,6 +73,10 @@ export const handler = async (event: any, { emit, logger }: any) => {
                 errorMsg = result.stderr;
                 break; 
             }
+        }
+
+        if (i < casesToRun.length - 1) {
+            await sleep(300);
         }
     }
 

@@ -5,7 +5,7 @@ import Editor from '@monaco-editor/react';
 import { 
   Terminal, Play, Send, Settings, 
   Maximize2, Minimize2, RotateCcw, 
-  CheckCircle2, Clock, AlertCircle, 
+  CheckCircle2, 
   X,
   XCircle,
   Swords
@@ -13,8 +13,9 @@ import {
 import axios from 'axios';
 import { Badge, PlayerCard } from '@/components/battle/PlayerCard';
 import toast, { Toaster } from 'react-hot-toast';
-import { useStreamGroup, useStreamItem } from '@motiadev/stream-client-react';
+import { useStreamItem } from '@motiadev/stream-client-react';
 import { api } from '@/lib/services/apiRequests';
+import { Metadata } from 'next';
 
 interface TestCaseResult {
     id: number;
@@ -28,7 +29,7 @@ interface TestCaseResult {
 interface MatchStreamEvent {
   type: 'START_RACE' | 'GAME_OVER' | 'CODE_FEEDBACK' | 'PLAYER_JOINED';
   timestamp?: number;
-  action?: 'RUN_TESTS' | 'SUBMIT_SOLUTION'; // Distinguish actions
+  action?: 'RUN_TESTS' | 'SUBMIT_SOLUTION';
   startTime?: number;
   endTime?: number;
   winner?: string;
@@ -36,7 +37,7 @@ interface MatchStreamEvent {
   success?: boolean;
   error?: string;
   players?: string[];
-  results?: TestCaseResult[]; // Detailed results from backend
+  results?: TestCaseResult[];
 }
 
 interface MatchData {
@@ -58,12 +59,11 @@ interface MatchData {
     template: Record<string, string>;
     examples: any[];
   };
-} 
+}
 
 export default function BattlePage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
-    
-    // This prevents the "empty string" race condition on first render
+
     const [myNickname, setMyNickname] = useState<string>(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('battle_nickname') || '';

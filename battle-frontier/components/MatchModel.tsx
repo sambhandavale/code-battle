@@ -3,6 +3,7 @@ import { Swords, X, Clock, Users, Copy, ArrowRight, User } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useRouter } from "next/navigation";
 import { useStreamItem } from '@motiadev/stream-client-react';
+import { api } from "@/lib/services/apiRequests";
 
 // 👇 1. Extract Listener to a Sub-Component
 // This component ONLY mounts when we have a valid Match ID.
@@ -44,7 +45,7 @@ export const MatchModal = ({ isOpen, onClose, setActiveTab, activeTab = 'create'
 
   if (!isOpen) return null;
 
-  const handleCreate = async () => {
+ const handleCreate = async () => {
     if (!nickname.trim()) {
         toast.error("Please enter a nickname");
         return;
@@ -58,23 +59,15 @@ export const MatchModal = ({ isOpen, onClose, setActiveTab, activeTab = 'create'
         
         localStorage.setItem('battle_nickname', nickname);
 
-        const response = await fetch('http://localhost:3000/match/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                playerId: nickname, 
-                matchId: randomCode,
-                time: selectedTime
-            }),
+        // ✅ FIX 1: The result is the data itself. No generic type passed means it is 'unknown', 
+        // but we can assume it succeeded if we pass this line.
+        await api.postAction('/match/create', {
+            playerId: nickname, 
+            matchId: randomCode,
+            time: selectedTime
         });
 
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-        const data = await response.json();
-        
-        // 👇 This state change triggers the <MatchListener /> to mount
         setGeneratedCode(randomCode);
-        
         toast.success('Room created!', { id: loadingToast });
 
     } catch (error) {
@@ -101,20 +94,12 @@ export const MatchModal = ({ isOpen, onClose, setActiveTab, activeTab = 'create'
     try {
       localStorage.setItem('battle_nickname', nickname);
 
-      const response = await fetch('http://localhost:3000/match/join', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await api.postAction('/match/join', {
           playerId: nickname, 
           matchId: matchId 
-        }),
       });
 
-      if (!response.ok) throw new Error(`Invalid Code or Room Full`);
-
-      const data = await response.json();
       toast.success('Joined successfully!', { id: loadingToast });
-      
       router.push(`/battle/live/${matchId}`);
 
     } catch (error) {

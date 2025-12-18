@@ -1,6 +1,6 @@
 import axios, { AxiosRequestConfig } from 'axios';
 
-const BASE_URL = process.env.API_GATEWAY_URL || 'http://localhost:3000';
+const BASE_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL || 'http://localhost:3000';
 
 // 2. Create the Axios Instance
 const axiosInstance = axios.create({

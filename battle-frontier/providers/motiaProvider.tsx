@@ -3,7 +3,7 @@
 import { MotiaStreamProvider } from '@motiadev/stream-client-react';
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const wsUrl = process.env.WS_GATEWAY_URL;
+  const wsUrl = process.env.NEXT_PUBLIC_WS_GATEWAY_URL;
 
   if (!wsUrl) {
     console.warn('WS URL is missing. Check your .env file.');

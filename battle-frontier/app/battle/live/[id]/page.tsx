@@ -8,14 +8,15 @@ import {
   CheckCircle2, 
   X,
   XCircle,
-  Swords
+  Swords,
+  Sparkles
 } from 'lucide-react';
 import axios from 'axios';
 import { Badge, PlayerCard } from '@/components/battle/PlayerCard';
 import toast, { Toaster } from 'react-hot-toast';
 import { useStreamItem } from '@motiadev/stream-client-react';
 import { api } from '@/lib/services/apiRequests';
-import { Metadata } from 'next';
+import ReactMarkdown from 'react-markdown';
 
 interface TestCaseResult {
     id: number;
@@ -27,38 +28,39 @@ interface TestCaseResult {
 }
 
 interface MatchStreamEvent {
-  type: 'START_RACE' | 'GAME_OVER' | 'CODE_FEEDBACK' | 'PLAYER_JOINED';
-  timestamp?: number;
-  action?: 'RUN_TESTS' | 'SUBMIT_SOLUTION';
-  startTime?: number;
-  endTime?: number;
-  winner?: string;
-  playerId?: string;
-  success?: boolean;
-  error?: string;
-  players?: string[];
-  results?: TestCaseResult[];
+    type: 'START_RACE' | 'GAME_OVER' | 'CODE_FEEDBACK' | 'PLAYER_JOINED' | 'AI_ANALYSIS' | 'AI_STATUS';
+    timestamp?: number;
+    action?: 'RUN_TESTS' | 'SUBMIT_SOLUTION';
+    startTime?: number;
+    endTime?: number;
+    winner?: string;
+    playerId?: string;
+    success?: boolean;
+    error?: string;
+    players?: string[];
+    results?: TestCaseResult[];
+    text?:string;
 }
 
 interface MatchData {
-  matchId: string;
-  status: 'WAITING' | 'RACING' | 'FINISHED';
-  players: string[];
-  duration: number;
-  startTime?: number;
-  endTime?: number;
-  problem: {
-    title: string;
-    description: string;
-    difficulty: string;
-    tags: string[];
-    task: string;
-    input_format: string;
-    output_format: string;
-    constraints: string;
-    template: Record<string, string>;
-    examples: any[];
-  };
+    matchId: string;
+    status: 'WAITING' | 'RACING' | 'FINISHED';
+    players: string[];
+    duration: number;
+    startTime?: number;
+    endTime?: number;
+    problem: {
+        title: string;
+        description: string;
+        difficulty: string;
+        tags: string[];
+        task: string;
+        input_format: string;
+        output_format: string;
+        constraints: string;
+        template: Record<string, string>;
+        examples: any[];
+    };
 }
 
 export default function BattlePage({ params }: { params: Promise<{ id: string }> }) {
@@ -81,17 +83,19 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
     const [submissionResult, setSubmissionResult] = useState<{ success: boolean; msg?: string } | null>(null);
     const [testResults, setTestResults] = useState<TestCaseResult[] | null>(null);
 
+    const [analyzing, setAnalyzing] = useState(false);
+    const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
 
     // Code & UI
     const [language, setLanguage] = useState('javascript');
     const [code, setCode] = useState('');
     const [timeLeft, setTimeLeft] = useState<string>("00:00");
-    const [activeTab, setActiveTab] = useState<'desc' | 'cases'>('desc');
+    const [activeTab, setActiveTab] = useState<'desc' | 'cases' | 'analysis'>('desc');
     const [matchResult, setMatchResult] = useState<string>('');
 
     const { data: latestMessage } = useStreamItem<MatchStreamEvent>({
         streamName: 'match',
-        groupId: id,
+        groupId: id, 
         id: 'message'
     });
 
@@ -128,6 +132,18 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
             }
         }
 
+        if (latestMessage.type === 'AI_STATUS' && latestMessage.playerId === myNickname) {
+            toast("AI Referee is thinking...", { icon: '🤖' });
+            setAnalyzing(true);
+        }
+
+        if (latestMessage.type === 'AI_ANALYSIS' && latestMessage.playerId === myNickname) {
+            setAnalyzing(false);
+            setAiAnalysis(latestMessage.text || "");
+            setActiveTab('analysis');
+            toast.success("Analysis Ready!", { icon: '✨' });
+        }
+
         // B: Handle Player Joined
         if (latestMessage.type === 'PLAYER_JOINED') {
             if (latestMessage.players) {
@@ -149,8 +165,11 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
         if (latestMessage.winner === myNickname) {
             toast("🏆 You Won!", { icon: "🎉", duration: 5000 });
             setMatchResult('YOU WON');
-        } else {
-            toast("💀 You Lost", { icon: "🥀" });
+        } else if(latestMessage.winner === null){
+            toast("Its a draw", { icon: "🤝", duration: 5000 });
+        }
+        else {
+            toast("💀 You Lost", { icon: "🥀", duration: 2500 });
             setMatchResult('YOU LOST');
         }
         }
@@ -269,6 +288,24 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
         }
     };
 
+    const handleAnalyze = async () => {
+        if (!matchData || !myNickname) return;
+        setAnalyzing(true);
+        setActiveTab('analysis')
+        try {
+            await api.postAction('/match/analyze', {
+                matchId: matchData.matchId,
+                playerId: myNickname,
+                language,
+                code,
+                problemTitle: matchData.problem?.title
+            });
+        } catch (error) {
+            toast.error("Failed to start analysis");
+            setAnalyzing(false);
+        }
+    };
+
     if (loading) return <div className="h-screen flex items-center justify-center text-slate-500 animate-pulse">Loading Arena...</div>;
     if (!matchData) return <div className="h-screen flex items-center justify-center text-rose-500 font-bold">Match not found or API error</div>;
 
@@ -292,27 +329,8 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
     return (
         <div className="h-screen flex flex-col bg-slate-100 overflow-hidden font-sans relative">
             <Toaster position="top-center" />
-            
-            <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 z-10">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                    <div className="bg-blue-600 text-white p-1.5 rounded-lg shadow-lg shadow-blue-600/20">
-                        <Swords size={20} />
-                    </div>
-                    <span className="text-xl font-bold text-slate-800 tracking-tight">CodeBattle.</span>
-                    </div>
-                    <div className="h-4 w-px bg-slate-200 mx-2" />
-                    <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
-                        <span className={`w-2 h-2 rounded-full ${statusDotClass}`} />
-                        {matchResult ? matchResult : status}
-                    </div>
-                </div>
-                <div className="flex items-center gap-3">
-                    <div className="bg-slate-100 px-3 py-1.5 rounded-md text-xs font-bold text-slate-600 border border-slate-200">
-                    ID: {matchData.matchId}
-                    </div>
-                </div>
-            </header>
+
+            <PageHeader statusDotClass={statusDotClass} matchResult={matchResult} matchData={matchData}/>
 
             <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
                 
@@ -334,10 +352,15 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
                         <button onClick={() => setActiveTab('cases')} className={`py-3 border-b-2 transition-colors ${activeTab === 'cases' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
                             {testResults ? 'Test Results' : 'Examples'}
                         </button>
+                        {(aiAnalysis || analyzing) && (
+                            <button onClick={() => setActiveTab('analysis')} className={`py-3 border-b-2 transition-colors flex items-center gap-1.5 ${activeTab === 'analysis' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                                <Sparkles size={14} /> AI Review
+                            </button>
+                        )}
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin">
-                        {activeTab === 'desc' ? (
+                        {activeTab === 'desc' && (
                             <div className="prose prose-sm max-w-none text-slate-600">
                                 <p className="mb-4">{problem?.description}</p>
                                 <div className="bg-blue-50 p-4 rounded-lg text-blue-800 text-sm mb-4 border border-blue-100">
@@ -348,7 +371,8 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
                                 <h3 className="text-slate-800 font-bold text-xs uppercase tracking-wider mb-2 mt-6">Output Format</h3>
                                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-slate-700 font-mono text-xs">{problem?.output_format}</div>
                             </div>
-                        ) : (
+                        )}
+                        {activeTab === 'cases' && (  
                             <div className="space-y-4">
                                 {testResults ? (
                                     <div className="space-y-4">
@@ -403,6 +427,58 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
                                 )}
                             </div>
                         )}
+                        {activeTab === 'analysis' && (
+                            <div className="animate-in fade-in zoom-in-95 duration-300 h-full">
+                                {analyzing ? (
+                                    <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-400">
+                                        <Sparkles className="animate-spin text-indigo-500" size={24} />
+                                        <p className="text-sm font-medium animate-pulse">AI Referee is analyzing complexity...</p>
+                                    </div>
+                                ) : (
+                                    <div className="pb-4">
+                                        {/* Header Banner */}
+                                        <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl mb-6 flex items-start gap-3">
+                                            <div className="p-2 bg-white rounded-lg shadow-sm text-indigo-600 shrink-0">
+                                                <Sparkles size={18} />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-indigo-950 text-sm">Coach's Feedback</h3>
+                                                <p className="text-xs text-indigo-700/80 mt-0.5">Automated Code Review</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Markdown Renderer */}
+                                        <div className="space-y-4">
+                                            <ReactMarkdown 
+                                                components={{
+                                                    // Custom styling to match your UI theme
+                                                    h3: ({node, ...props}) => (
+                                                        <h3 className="text-slate-900 font-bold text-sm uppercase tracking-wider border-b border-slate-100 pb-2 mb-3 mt-6 first:mt-0" {...props} />
+                                                    ),
+                                                    ul: ({node, ...props}) => (
+                                                        <ul className="space-y-2 mb-4" {...props} />
+                                                    ),
+                                                    li: ({node, ...props}) => (
+                                                        <li className="text-sm text-slate-600 flex gap-2 items-start" {...props}>
+                                                            <span className="text-slate-400 mt-1.5">•</span>
+                                                            <span className="flex-1 leading-relaxed">{props.children}</span>
+                                                        </li>
+                                                    ),
+                                                    p: ({node, ...props}) => (
+                                                        <p className="text-sm text-slate-600 mb-2" {...props} />
+                                                    ),
+                                                    strong: ({node, ...props}) => (
+                                                        <strong className="font-semibold text-slate-800 bg-slate-100 px-1 rounded" {...props} />
+                                                    )
+                                                }}
+                                            >
+                                                {aiAnalysis || ""}
+                                            </ReactMarkdown>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -444,6 +520,16 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
                     <PlayerCard name={isSpectator ? players[1] : myNickname} isOpponent={false} timeLeft={timeLeft} status={status} />
 
                     <div className="bg-white border-t border-slate-200 p-4 flex items-center justify-between shrink-0">
+                        {!isSpectator && (
+                            <button 
+                                onClick={handleAnalyze} 
+                                disabled={analyzing}
+                                className="flex items-center gap-2 px-4 py-2.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg text-sm font-bold transition disabled:opacity-50"
+                            >
+                                <Sparkles size={16} /> 
+                                {analyzing ? 'Thinking...' : 'Analyze Code'}
+                            </button>
+                        )}
                         <div className="flex gap-3 ml-auto">
                             <button onClick={handleRun} disabled={running || submitting || isSpectator} className={`flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition ${(running) ? 'opacity-70 cursor-not-allowed' : ''}`}>
                                 {running ? 'Running...' : <><Play size={16} fill="currentColor" /> Run</>}
@@ -457,6 +543,35 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
             </main>
         </div>
     );
+}
+
+const PageHeader = ({ statusDotClass, matchResult, matchData }:{
+    statusDotClass:string;
+    matchResult:string;
+    matchData:MatchData;
+}) =>{
+    return(
+        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 z-10">
+            <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                    <div className="bg-blue-600 text-white p-1.5 rounded-lg shadow-lg shadow-blue-600/20">
+                        <Swords size={20} />
+                    </div>
+                    <span className="text-xl font-bold text-slate-800 tracking-tight">CodeBattle.</span>
+                </div>
+                <div className="h-4 w-px bg-slate-200 mx-2" />
+                <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
+                    <span className={`w-2 h-2 rounded-full ${statusDotClass}`} />
+                    {matchResult ? matchResult : status}
+                </div>
+            </div>
+            <div className="flex items-center gap-3">
+                <div className="bg-slate-100 px-3 py-1.5 rounded-md text-xs font-bold text-slate-600 border border-slate-200">
+                ID: {matchData.matchId}
+                </div>
+            </div>
+        </header>
+    )
 }
 
 const CodeIcon = ({ className }: { className?: string }) => (

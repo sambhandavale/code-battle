@@ -30,12 +30,17 @@ export const handler = async (event: any, { emit, logger }: any) => {
 
   let overallSuccess = true;
   let errorMsg = undefined;
-  
   const testResults: any[] = [];
 
   try {
     const match = await MatchModel.findOne({ matchId });
     if (!match) throw new Error("Match not found");
+
+    // 🛑 SAFETY CHECK:
+    // If they are trying to submit to win, but the match isn't RACING (e.g. Expired), fail fast.
+    if (action === 'SUBMIT_SOLUTION' && match.status !== 'RACING') {
+        throw new Error(`Cannot submit. Match is ${match.status}`);
+    }
 
     const question = await Question.findById(match.problemId);
     if (!question) throw new Error("Question not found");
@@ -43,6 +48,7 @@ export const handler = async (event: any, { emit, logger }: any) => {
     let casesToRun = question.test_cases;
     
     if (action === 'RUN_TESTS') {
+        // Run subset for quick feedback
         const limit = Math.ceil(casesToRun.length * 0.25) || 1; 
         casesToRun = casesToRun.slice(0, limit);
         logger.info(`JUDGE: Running subset (${limit}/${question.test_cases.length}) for ${playerId}`);
@@ -50,10 +56,9 @@ export const handler = async (event: any, { emit, logger }: any) => {
         logger.info(`JUDGE: Running ALL (${casesToRun.length}) for ${playerId} submission`);
     }
 
+    // --- PISTON EXECUTION LOOP ---
     for (let i = 0; i < casesToRun.length; i++) {
         const testCase = casesToRun[i];
-        
-        // Pass logger to runPiston so we can see logs in the Workbench
         const result = await runPiston(code, language, version, testCase, logger);
 
         const caseResult = {
@@ -69,21 +74,23 @@ export const handler = async (event: any, { emit, logger }: any) => {
 
         if (result.status !== Verdict.ACCEPTED) {
             overallSuccess = false;
+            // For submission, we can break early on failure to save time
+            // But usually, users like to see which tests passed, so we might keep running.
+            // Here we break on COMPILE_ERROR only.
             if (result.status === Verdict.COMPILE_ERROR) {
                 errorMsg = result.stderr;
                 break; 
             }
         }
 
-        if (i < casesToRun.length - 1) {
-            await sleep(300);
-        }
+        // Slight delay to be nice to the free API
+        if (i < casesToRun.length - 1) await sleep(300);
     }
 
   } catch (err: any) {
     overallSuccess = false;
-    errorMsg = `System Error: ${err.message}`;
-    logger.error(errorMsg);
+    errorMsg = err.message || "System Error";
+    logger.error(`RUNNER ERROR: ${errorMsg}`);
   }
 
   const resultData = {
@@ -99,14 +106,14 @@ export const handler = async (event: any, { emit, logger }: any) => {
   await emit({ topic: 'code.processed', data: resultData });
 };
 
-// 👇 UPDATED: Added logger parameter and detailed error logging
+// --- HELPER FUNCTION ---
 async function runPiston(code: string, language: string, version: string, testCase: any, logger?: any) {
     const pistonLang = languages.find((lang)=>lang.pistonLang == language)?.pistonLang
     const ver = languages.find((lang)=>lang.pistonLang == language)?.version;
 
     const payload = {
         language: pistonLang,
-        version: ver || "*", // Piston often fails if version doesn't match exactly, '*' is safer
+        version: ver || "*",
         files: [{ name: 'main', content: code }],
         stdin: testCase.input,
         run_timeout: 3000,
@@ -120,7 +127,6 @@ async function runPiston(code: string, language: string, version: string, testCa
             body: JSON.stringify(payload),
         });
 
-        // 1. Check if HTTP Request failed (e.g. 400 Bad Request, 500 Server Error)
         if (!response.ok) {
             const text = await response.text();
             if (logger) logger.error(`PISTON HTTP ERROR ${response.status}: ${text}`);
@@ -129,37 +135,18 @@ async function runPiston(code: string, language: string, version: string, testCa
 
         const data: any = await response.json();
 
-        // 2. Check for Piston-specific error structure
-        if (data.message) {
-             if (logger) logger.error("PISTON ERROR MESSAGE:", data.message);
-             return { status: Verdict.RUNTIME_ERROR, stderr: data.message };
-        }
-
-        if (data.compile && data.compile.code !== 0) {
-            return { status: Verdict.COMPILE_ERROR, stderr: data.compile.stderr };
-        }
-        
-        if (data.run && data.run.code !== 0) {
-            // Signal code is killed or exited with error
-            return { status: Verdict.RUNTIME_ERROR, stderr: data.run.stderr || `Exited with code ${data.run.code}` };
-        }
+        if (data.message) return { status: Verdict.RUNTIME_ERROR, stderr: data.message };
+        if (data.compile && data.compile.code !== 0) return { status: Verdict.COMPILE_ERROR, stderr: data.compile.stderr };
+        if (data.run && data.run.code !== 0) return { status: Verdict.RUNTIME_ERROR, stderr: data.run.stderr || `Exited with code ${data.run.code}` };
 
         const actual = (data.run.stdout || "").trim();
         const expected = testCase.output.map((o: string) => o.trim());
-        
         const isCorrect = expected.includes(actual);
         
-        return { 
-            status: isCorrect ? Verdict.ACCEPTED : Verdict.WRONG_ANSWER, 
-            output: actual 
-        };
+        return { status: isCorrect ? Verdict.ACCEPTED : Verdict.WRONG_ANSWER, output: actual };
 
     } catch (e: any) {
-        if (logger) {
-            logger.error("PISTON EXCEPTION:", e.message);
-            // Log payload to see what broke it
-            logger.error("Payload sent:", JSON.stringify(payload));
-        }
+        if (logger) logger.error("PISTON EXCEPTION:", e.message);
         return { status: Verdict.RUNTIME_ERROR, stderr: `API Exception: ${e.message}` };
     }
 }

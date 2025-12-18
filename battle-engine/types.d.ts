@@ -12,11 +12,12 @@ declare module 'motia' {
   }
 
   interface Handlers {
+    'MatchTimer': EventHandler<never, never>
     'MatchStatusAPI': ApiRouteHandler<Record<string, unknown>, unknown, never>
-    'MatchExpiryJob': CronHandler<never>
-    'MatchAPI': ApiRouteHandler<Record<string, unknown>, unknown, { topic: 'player.joined'; data: never } | { topic: 'run.code'; data: never }>
-    'GameEngine': EventHandler<never, never>
+    'MatchAPI': ApiRouteHandler<Record<string, unknown>, unknown, { topic: 'player.joined'; data: never } | { topic: 'run.code'; data: never } | { topic: 'analyze.code'; data: never }>
+    'GameEngine': EventHandler<never, { topic: 'match.started'; data: never }>
     'CodeRunner': EventHandler<never, { topic: 'code.processed'; data: never }>
+    'AiReferee': EventHandler<never, never>
   }
     
 }

@@ -6,15 +6,14 @@ export const config: StepConfig = {
   name: 'GameEngine',
   type: 'event',
   subscribes: ['player.joined', 'code.processed'],
-  emits: [],
+  emits: ['match.started'], // 👈 NEW: Triggers the timer
   flows: ['CodeDuelFlow']
 };
 
 export const handler = async (event: any, context: any) => {
-  const { streams, logger, topic } = context; 
+  const { streams, logger, topic, emit } = context; 
   await connectDB();
   
-  // Normalize payload (sometimes Motia wraps it in data, sometimes it is direct)
   const payload = event.data || event; 
   const matchId = payload.matchId;
 
@@ -23,7 +22,6 @@ export const handler = async (event: any, context: any) => {
     return;
   }
 
-  // Determine which type of event triggered this step
   const isJoinEvent = (topic === 'player.joined') || (payload.playerId && !payload.action);
   const isCodeEvent = (topic === 'code.processed') || (payload.action !== undefined);
 
@@ -31,9 +29,6 @@ export const handler = async (event: any, context: any) => {
   // 1. PLAYER JOIN & RACE START LOGIC
   // ---------------------------------------------------------
   if (isJoinEvent) {
-    // Note: The immediate "Player Joined" notification is sent by MatchAPI.
-    // This block is strictly for checking if we should START the race.
-    
     const preMatch = await MatchModel.findOne({ matchId });
     
     // Check if we are waiting and now have enough players (2)
@@ -43,8 +38,6 @@ export const handler = async (event: any, context: any) => {
         const now = Date.now();
         const endTime = now + preMatch.duration;
 
-        // Atomic Update: Only update if status is still 'WAITING'
-        // This prevents double-starts if multiple events come in quickly
         const updatedGame = await MatchModel.findOneAndUpdate(
             { matchId, status: 'WAITING' },
             { $set: { status: 'RACING', startTime: now, endTime: endTime } },
@@ -54,7 +47,7 @@ export const handler = async (event: any, context: any) => {
         if (updatedGame) {
              logger.info(`RACE STARTED! Ends at: ${new Date(endTime).toISOString()}`);
              
-             // Broadcast START_RACE to all clients
+             // A. Broadcast START to Frontend
              if (streams.match) {
                 await streams.match.set(matchId, 'message', { 
                     type: 'START_RACE', 
@@ -62,6 +55,12 @@ export const handler = async (event: any, context: any) => {
                     endTime: endTime 
                 });
              }
+
+             // B. Start the Durable Timer (Replaces Cron)
+             await emit({ 
+                 topic: 'match.started', 
+                 data: { matchId, duration: preMatch.duration } 
+             });
         }
     }
   }
@@ -73,29 +72,22 @@ export const handler = async (event: any, context: any) => {
      const result = payload; 
      logger.info(`ENGINE: Result for ${matchId} (${result.action}) - Success: ${result.success}`);
 
-     // A. Always Stream Feedback (For both 'RUN_TESTS' and 'SUBMIT_SOLUTION')
-     // This allows the frontend to show specific test case results (Pass/Fail)
-     // without ending the game.
+     // Always Stream Feedback
      if (streams.match) {
          await streams.match.set(matchId, 'message', { 
             type: 'CODE_FEEDBACK',
             playerId: result.playerId,
-            action: result.action,      // 'RUN_TESTS' or 'SUBMIT_SOLUTION'
-            success: result.success,    // Did it pass the specific tests run?
-            error: result.error,        // Compile/Runtime errors
-            results: result.results,    // Detailed array of test case results
+            action: result.action,
+            success: result.success,
+            error: result.error,
+            results: result.results,
             timestamp: Date.now()
          });
      }
 
-     // B. Handle Win Condition
-     // Only if action is SUBMIT_SOLUTION and it was completely successful
+     // Handle Win Condition
      if (result.action === 'SUBMIT_SOLUTION' && result.success) {
-        logger.info(`Attempting to declare winner: ${result.playerId}...`);
-
-        // Atomic Update: Only set winner if match is currently RACING.
-        // This prevents a second submission from overwriting the winner 
-        // if two players submit milliseconds apart.
+        // Atomic Win Claim
         const winningGame = await MatchModel.findOneAndUpdate(
             { matchId, status: 'RACING' },
             { $set: { status: 'FINISHED', winnerId: result.playerId } },
@@ -104,21 +96,13 @@ export const handler = async (event: any, context: any) => {
 
         if (winningGame) {
             logger.info(`MATCH FINISHED! Winner is ${result.playerId}`);
-            
-            // Broadcast GAME_OVER to all clients
             if (streams.match) {
                 await streams.match.set(matchId, 'message', { 
                     type: 'GAME_OVER', 
-                    winner: result.playerId 
+                    winner: result.playerId,
+                    reason: 'SOLVED'
                 });
             }
-        } else {
-            // If update failed, it means the match was already finished
-            const currentMatch = await MatchModel.findOne({ matchId });
-            logger.warn(`WINNER UPDATE IGNORED (Match is ${currentMatch?.status})`, { 
-                matchId, 
-                ignoredWinner: result.playerId 
-            });
         }
      }
   }

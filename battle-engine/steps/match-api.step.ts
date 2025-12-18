@@ -9,12 +9,11 @@ export const config: StepConfig = {
   type: 'api',
   path: '/match/:action',
   method: 'POST',
-  emits: ['player.joined', 'run.code'],
+  emits: ['player.joined', 'run.code', 'analyze.code'],
   flows: ['CodeDuelFlow']
 };
 
 export const handler = async (req: any, context: any) => {
-  // 👇 1. Get 'streams' from context so we can broadcast updates
   const { emit, logger, streams } = context;
   await connectDB();
 
@@ -22,6 +21,7 @@ export const handler = async (req: any, context: any) => {
     const action = req.params?.action || req.pathParams?.action;
     const { playerId, matchId, code, language, time } = req.body || {};
 
+    // --- CREATE MATCH ---
     if (action === 'create') {
         const newMatchId = matchId || `match_${Date.now()}`;
         
@@ -32,20 +32,18 @@ export const handler = async (req: any, context: any) => {
         const durationMs = validDuration * 60 * 1000;
 
         const count = await Question.countDocuments({ time: validDuration });
-
         if (count === 0) {
-            return { status: 500, body: { error: `No questions found for ${validDuration} minutes. Please seed data.` } };
+            return { status: 500, body: { error: `No questions found for ${validDuration} mins.` } };
         }
 
         const random = Math.floor(Math.random() * count);
-
         const randomQuestion = await Question.findOne({ time: validDuration }).skip(random);
 
         if (!randomQuestion) {
             return { status: 500, body: { error: "Error fetching question." } };
         }
 
-        logger.info(`Creating Match ${newMatchId} with problem: ${randomQuestion.title} (${validDuration} mins)`);
+        logger.info(`Creating Match ${newMatchId} with problem: ${randomQuestion.title}`);
 
         await MatchModel.create({
             matchId: newMatchId,
@@ -66,6 +64,7 @@ export const handler = async (req: any, context: any) => {
         };
     }
 
+    // --- JOIN MATCH ---
     if (action === 'join') {
         const game = await MatchModel.findOne({ matchId });
         if (!game) return { status: 404, body: { error: "Match not found" } };
@@ -76,9 +75,9 @@ export const handler = async (req: any, context: any) => {
         }
 
         const problem = await Question.findById(game.problemId);
-
         logger.info(`DB: Added player ${playerId} to ${matchId}`);
         
+        // Notify Engine
         await emit({ topic: 'player.joined', data: { matchId, playerId } });
 
         if (streams?.match) {
@@ -100,22 +99,16 @@ export const handler = async (req: any, context: any) => {
         };
     }
 
+    // --- SUBMIT / RUN ---
     if (action === 'submit' || action === 'run') {
-        // Frontend can explicitly send type: 'RUN_TESTS' or 'SUBMIT_SOLUTION'
         const requestType = req.body?.type || (action === 'run' ? 'RUN_TESTS' : 'SUBMIT_SOLUTION');
         
         const match = await MatchModel.findOne({ matchId });
         if (!match) return { status: 404, body: { error: "Match not found" } };
 
-        // Allow running code even if race hasn't started (for practice), 
-        // but restrict SUBMIT to RACING only.
+        // Validation: Only allow SUBMIT if RACING. (Run is allowed for practice)
         if (requestType === 'SUBMIT_SOLUTION' && match.status !== 'RACING') {
              return { status: 400, body: { error: `Cannot submit. Match is ${match.status}` } };
-        }
-
-        const deadline = match.endTime || ((match.startTime || 0) + match.duration);
-        if (requestType === 'SUBMIT_SOLUTION' && match.status === 'RACING' && Date.now() > deadline) {
-            return { status: 400, body: { error: "Time Limit Exceeded! The match has ended." } };
         }
 
         const jobData: RunnerRequest = { 
@@ -132,6 +125,32 @@ export const handler = async (req: any, context: any) => {
         
         await emit({ topic: 'run.code', data: jobData });
         return { status: 200, body: { msg: "Code queued" } };
+    }
+
+    if (action === 'analyze') {
+        const { code, language, problemTitle } = req.body;
+
+        if (!code) {
+             return { status: 400, body: { error: "No code provided for analysis." } };
+        }
+
+        // Emit an event to trigger the AI Worker
+        // We don't wait for the AI here (it's async). We just say "Analysis Started".
+        await emit({ 
+            topic: 'analyze.code', 
+            data: { 
+                matchId, // Optional: if you want to broadcast to the match room
+                playerId, // The user asking for help
+                code,
+                language: language || 'python',
+                problemTitle: problemTitle || 'Unknown Problem'
+            } 
+        });
+
+        return { 
+            status: 200, 
+            body: { msg: "Analysis started. Watch the stream for results." } 
+        };
     }
 
     return { status: 400, body: { error: "Invalid Action" } };

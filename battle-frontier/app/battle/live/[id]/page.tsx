@@ -7,12 +7,14 @@ import {
   Maximize2, Minimize2, RotateCcw, 
   CheckCircle2, Clock, AlertCircle, 
   X,
-  XCircle
+  XCircle,
+  Swords
 } from 'lucide-react';
 import axios from 'axios';
 import { Badge, PlayerCard } from '@/components/battle/PlayerCard';
 import toast, { Toaster } from 'react-hot-toast';
 import { useStreamGroup, useStreamItem } from '@motiadev/stream-client-react';
+import { api } from '@/lib/services/apiRequests';
 
 interface TestCaseResult {
     id: number;
@@ -59,239 +61,225 @@ interface MatchData {
 } 
 
 export default function BattlePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  
-  // 1. FIX: Initialize Nickname IMMEDIATELY (Lazy Init)
-  // This prevents the "empty string" race condition on first render
-  const [myNickname, setMyNickname] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-        return localStorage.getItem('battle_nickname') || '';
-    }
-    return '';
-  });
+    const { id } = use(params);
+    
+    // This prevents the "empty string" race condition on first render
+    const [myNickname, setMyNickname] = useState<string>(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('battle_nickname') || '';
+        }
+        return '';
+    });
 
-  // State
-  const [matchData, setMatchData] = useState<MatchData | null>(null);
-  const [loading, setLoading] = useState(true);
-  
-  // Action States
-  const [submitting, setSubmitting] = useState(false);
-  const [running, setRunning] = useState(false);
-  const [submissionResult, setSubmissionResult] = useState<{ success: boolean; msg?: string } | null>(null);
-  const [testResults, setTestResults] = useState<TestCaseResult[] | null>(null);
+    // State
+    const [matchData, setMatchData] = useState<MatchData | null>(null);
+    const [loading, setLoading] = useState(true);
+    
+    // Action States
+    const [submitting, setSubmitting] = useState(false);
+    const [running, setRunning] = useState(false);
+    const [submissionResult, setSubmissionResult] = useState<{ success: boolean; msg?: string } | null>(null);
+    const [testResults, setTestResults] = useState<TestCaseResult[] | null>(null);
 
-  // Code & UI
-  const [language, setLanguage] = useState('javascript');
-  const [code, setCode] = useState('');
-  const [timeLeft, setTimeLeft] = useState<string>("00:00");
-  const [activeTab, setActiveTab] = useState<'desc' | 'cases'>('desc');
+    // Code & UI
+    const [language, setLanguage] = useState('javascript');
+    const [code, setCode] = useState('');
+    const [timeLeft, setTimeLeft] = useState<string>("00:00");
+    const [activeTab, setActiveTab] = useState<'desc' | 'cases'>('desc');
 
-  // ---------------------------------------------------------
-  // 1. MOTIA STREAM INTEGRATION
-  // ---------------------------------------------------------
-  const { data: latestMessage } = useStreamItem<MatchStreamEvent>({
-      streamName: 'match',
-      groupId: id,
-      id: 'message'
-  });
+    const { data: latestMessage } = useStreamItem<MatchStreamEvent>({
+        streamName: 'match',
+        groupId: id,
+        id: 'message'
+    });
 
-  // ---------------------------------------------------------
-  // 2. LISTEN FOR STREAM EVENTS
-  // ---------------------------------------------------------
     useEffect(() => {
-    if (!latestMessage) return;
+        if (!latestMessage) return;
 
-    // Debugging: Check if timestamp is updating
-    console.log("Stream Update:", latestMessage.timestamp, latestMessage.type);
+        // Debugging: Check if timestamp is updating
+        console.log("Stream Update:", latestMessage.timestamp, latestMessage.type);
 
-    if (latestMessage.type === 'CODE_FEEDBACK' && latestMessage.playerId === myNickname) {
-        
-        // 🛑 Force stop loading states immediately when ANY feedback arrives for me
-        toast.dismiss();
-        setRunning(false);
-        setSubmitting(false);
+        if (latestMessage.type === 'CODE_FEEDBACK' && latestMessage.playerId === myNickname) {
+            
+            // 🛑 Force stop loading states immediately when ANY feedback arrives for me
+            toast.dismiss();
+            setRunning(false);
+            setSubmitting(false);
 
-        // ... Process results ...
-        if (latestMessage.action === 'RUN_TESTS') {
-            setTestResults(latestMessage.results || []);
-            setActiveTab('cases');
-            if (latestMessage.success) toast.success("Tests Passed", { icon: '✅' });
-            else toast.error("Tests Failed");
-        } 
-        else if (latestMessage.action === 'SUBMIT_SOLUTION') {
-            if (latestMessage.success) {
-                toast.success("Accepted!", { icon: '🚀' });
-                setSubmissionResult({ success: true, msg: "All Test Cases Passed!" });
-            } else {
-                toast.error("Solution Failed");
+            // ... Process results ...
+            if (latestMessage.action === 'RUN_TESTS') {
                 setTestResults(latestMessage.results || []);
-                setActiveTab('cases'); 
-                setSubmissionResult({ success: false, msg: latestMessage.error || "Wrong Answer" });
+                setActiveTab('cases');
+                if (latestMessage.success) toast.success("Tests Passed", { icon: '✅' });
+                else toast.error("Tests Failed");
+            } 
+            else if (latestMessage.action === 'SUBMIT_SOLUTION') {
+                if (latestMessage.success) {
+                    toast.success("Accepted!", { icon: '🚀' });
+                    setSubmissionResult({ success: true, msg: "All Test Cases Passed!" });
+                } else {
+                    toast.error("Solution Failed");
+                    setTestResults(latestMessage.results || []);
+                    setActiveTab('cases'); 
+                    setSubmissionResult({ success: false, msg: latestMessage.error || "Wrong Answer" });
+                }
             }
         }
-    }
 
-    // B: Handle Player Joined
-    if (latestMessage.type === 'PLAYER_JOINED') {
-        if (latestMessage.players) {
-            setMatchData((prev: any) => prev ? ({ ...prev, players: latestMessage.players! }) : null);
+        // B: Handle Player Joined
+        if (latestMessage.type === 'PLAYER_JOINED') {
+            if (latestMessage.players) {
+                setMatchData((prev: any) => prev ? ({ ...prev, players: latestMessage.players! }) : null);
+            }
+            if (latestMessage.playerId !== myNickname) {
+                toast(`${latestMessage.playerId} joined!`, { icon: '👋' });
+            }
         }
-        if (latestMessage.playerId !== myNickname) {
-             toast(`${latestMessage.playerId} joined!`, { icon: '👋' });
+
+        // C: Handle Game Over
+        if (latestMessage.type === 'GAME_OVER') {
+        setMatchData((prev: any) => prev ? ({ 
+            ...prev, 
+            status: 'FINISHED', 
+            winnerId: latestMessage.winner || null 
+        }) : null);
+
+        if (latestMessage.winner === myNickname) {
+            toast("🏆 You Won!", { icon: "🎉", duration: 5000 });
+        } else {
+            toast("💀 You Lost", { icon: "🥀" });
         }
-    }
-
-    // C: Handle Game Over
-    if (latestMessage.type === 'GAME_OVER') {
-      setMatchData((prev: any) => prev ? ({ 
-          ...prev, 
-          status: 'FINISHED', 
-          winnerId: latestMessage.winner || null 
-      }) : null);
-
-      if (latestMessage.winner === myNickname) {
-        toast("🏆 You Won!", { icon: "🎉", duration: 5000 });
-      } else {
-        toast("💀 You Lost", { icon: "🥀" });
-      }
-    }
-
-    // D: Handle Race Start
-    if (latestMessage.type === 'START_RACE') {
-      setMatchData((prev: any) => prev ? ({ 
-          ...prev, 
-          status: 'RACING', 
-          startTime: latestMessage.startTime || Date.now(), 
-          endTime: latestMessage.endTime || 0 
-      }) : null);
-      toast("🏁 Race Started!", { icon: "go" });
-    }
-
-  }, [latestMessage, myNickname]); // 👈 myNickname is now stable
-
-  // ---------------------------------------------------------
-  // 3. INITIAL FETCH
-  // ---------------------------------------------------------
-  useEffect(() => {
-    const fetchMatch = async () => {
-      try {
-        const response = await axios.get(`http://localhost:3000/match/${id}`);
-        setMatchData(response.data);
-        if (response.data.problem?.template?.javascript) {
-            setCode(response.data.problem.template.javascript);
         }
-      } catch (error) {
-        console.error("Failed to fetch match:", error);
-      } finally {
-        setLoading(false);
-      }
+
+        // D: Handle Race Start
+        if (latestMessage.type === 'START_RACE') {
+        setMatchData((prev: any) => prev ? ({ 
+            ...prev, 
+            status: 'RACING', 
+            startTime: latestMessage.startTime || Date.now(), 
+            endTime: latestMessage.endTime || 0 
+        }) : null);
+        toast("🏁 Race Started!", { icon: "go" });
+        }
+
+    }, [latestMessage, myNickname]);
+
+    useEffect(() => {
+        const fetchMatch = async () => {
+        try {
+            const response = await axios.get(`http://localhost:3000/match/${id}`);
+            setMatchData(response.data);
+            if (response.data.problem?.template?.javascript) {
+                setCode(response.data.problem.template.javascript);
+            }
+        } catch (error) {
+            console.error("Failed to fetch match:", error);
+        } finally {
+            setLoading(false);
+        }
+        };
+        if (id) fetchMatch();
+    }, [id]);
+
+    useEffect(() => {
+        if (!matchData) return;
+        if (matchData.status === 'FINISHED') {
+            setTimeLeft("00:00");
+            return; 
+        }
+        const calculateTime = () => {
+        const now = Date.now();
+        const end = matchData.endTime || 0; 
+        if (matchData.status === 'WAITING') {
+            const minutes = Math.floor((matchData.duration || 300000) / 60000);
+            return `${minutes}:00`;
+        }
+        const diff = end - now;
+        if (diff <= 0) return "00:00";
+        const minutes = Math.floor(diff / 60000);
+        const seconds = Math.floor((diff % 60000) / 1000);
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        };
+        setTimeLeft(calculateTime() || "00:00");
+        const interval = setInterval(() => {
+            const timeString = calculateTime();
+            setTimeLeft(timeString || "00:00");
+            if (timeString === "00:00") clearInterval(interval);
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [matchData]);
+
+    const handleLanguageChange = (newLang: string) => {
+        setLanguage(newLang);
+        if (matchData?.problem?.template && matchData.problem.template[newLang]) {
+            setCode(matchData.problem.template[newLang]);
+        }
     };
-    if (id) fetchMatch();
-  }, [id]);
 
-  // ---------------------------------------------------------
-  // 4. TIMER LOGIC
-  // ---------------------------------------------------------
-  useEffect(() => {
-    if (!matchData) return;
-    if (matchData.status === 'FINISHED') {
-        setTimeLeft("00:00");
-        return; 
-    }
-    const calculateTime = () => {
-      const now = Date.now();
-      const end = matchData.endTime || 0; 
-      if (matchData.status === 'WAITING') {
-          const minutes = Math.floor((matchData.duration || 300000) / 60000);
-          return `${minutes}:00`;
-      }
-      const diff = end - now;
-      if (diff <= 0) return "00:00";
-      const minutes = Math.floor(diff / 60000);
-      const seconds = Math.floor((diff % 60000) / 1000);
-      return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    const handleRun = async () => {
+        if (!matchData || !myNickname) return;
+        
+        setRunning(true);
+        setTestResults(null); 
+        toast.loading("Running test cases...", { duration: 8000 });
+        
+        try {
+            // Uses the new utility name
+            await api.postAction('/match/run', {
+                matchId: matchData.matchId,
+                playerId: myNickname,
+                language,
+                code,
+                type: "RUN_TESTS"
+            });
+        } catch (error) {
+            toast.dismiss();
+            toast.error("Failed to execute code");
+            setRunning(false);
+        }
     };
-    setTimeLeft(calculateTime() || "00:00");
-    const interval = setInterval(() => {
-        const timeString = calculateTime();
-        setTimeLeft(timeString || "00:00");
-        if (timeString === "00:00") clearInterval(interval);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [matchData]);
 
-  // ---------------------------------------------------------
-  // 5. HANDLERS
-  // ---------------------------------------------------------
-  const handleLanguageChange = (newLang: string) => {
-    setLanguage(newLang);
-    if (matchData?.problem?.template && matchData.problem.template[newLang]) {
-        setCode(matchData.problem.template[newLang]);
-    }
-  };
+    const handleSubmit = async () => {
+        if (!matchData || !myNickname) return;
+        
+        setSubmitting(true);
+        setSubmissionResult(null); 
+        toast.loading("Submitting...", { duration: 10000 });
 
-  const handleRun = async () => {
-    if (!matchData || !myNickname) return;
-    
-    setRunning(true);
-    setTestResults(null); 
-    toast.loading("Running test cases...", { duration: 8000 });
-    
-    try {
-        await axios.post(`http://localhost:3000/match/run`, {
-            matchId: matchData.matchId,
-            playerId: myNickname,
-            language,
-            code,
-            type: "RUN_TESTS"
-        });
-    } catch (error) {
-        toast.dismiss();
-        toast.error("Failed to execute code");
-        setRunning(false);
-    }
-  };
+        try {
+            // Uses the new utility name
+            await api.postAction('/match/submit', {
+                matchId: matchData.matchId,
+                playerId: myNickname,
+                language,
+                code,
+                type: "SUBMIT_SOLUTION"
+            });
+        } catch (error) {
+            toast.dismiss();
+            toast.error("Failed to submit");
+            setSubmitting(false);
+        }
+    };
 
-  const handleSubmit = async () => {
-    if (!matchData || !myNickname) return;
-    setSubmitting(true);
-    setSubmissionResult(null); 
-    toast.loading("Submitting...", { duration: 10000 });
+    if (loading) return <div className="h-screen flex items-center justify-center text-slate-500 animate-pulse">Loading Arena...</div>;
+    if (!matchData) return <div className="h-screen flex items-center justify-center text-rose-500 font-bold">Match not found or API error</div>;
 
-    try {
-        await axios.post(`http://localhost:3000/match/submit`, {
-            matchId: matchData.matchId,
-            playerId: myNickname,
-            language,
-            code,
-            type: "SUBMIT_SOLUTION"
-        });
-    } catch (error) {
-        toast.dismiss();
-        toast.error("Failed to submit");
-        setSubmitting(false);
-    }
-  };
-
-  if (loading) return <div className="h-screen flex items-center justify-center text-slate-500 animate-pulse">Loading Arena...</div>;
-  if (!matchData) return <div className="h-screen flex items-center justify-center text-rose-500 font-bold">Match not found or API error</div>;
-
-  const { problem, players, status } = matchData;
-  const opponentName = players.find((p: string) => p !== myNickname) || "Opponent";
-  const isSpectator = !players.includes(myNickname);
+    const { problem, players, status } = matchData;
+    const opponentName = players.find((p: string) => p !== myNickname) || "Opponent";
+    const isSpectator = !players.includes(myNickname);
 
   return (
     <div className="h-screen flex flex-col bg-slate-100 overflow-hidden font-sans relative">
         <Toaster position="top-center" />
         
-        {/* Header */}
         <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 z-10">
             <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-slate-900 rounded-lg">
-                        <CodeIcon className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="font-bold text-slate-800 tracking-tight">CodeBattle</span>
+                <div className="bg-blue-600 text-white p-1.5 rounded-lg shadow-lg shadow-blue-600/20">
+                    <Swords size={20} />
+                </div>
+                <span className="text-xl font-bold text-slate-800 tracking-tight">CodeBattle.</span>
                 </div>
                 <div className="h-4 w-px bg-slate-200 mx-2" />
                 <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
@@ -306,7 +294,6 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
             </div>
         </header>
 
-        {/* Main Content */}
         <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
             
             {/* LEFT PANE: Description / Test Cases */}

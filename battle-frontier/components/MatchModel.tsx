@@ -28,9 +28,8 @@ const MatchListener = ({ matchId }: { matchId: string }) => {
   return null; // This component is invisible logic
 };
 
-export const MatchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+export const MatchModal = ({ isOpen, onClose, setActiveTab, activeTab = 'create' }: { isOpen: boolean; onClose: () => void; setActiveTab:React.Dispatch<React.SetStateAction<string>>; activeTab?:string }) => {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'create' | 'join'>('create');
   const [selectedTime, setSelectedTime] = useState(10);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState('');

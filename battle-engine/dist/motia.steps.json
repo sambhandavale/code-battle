@@ -1,0 +1,95 @@
+{
+  "steps": {
+    "node\\steps\\match-status-api.step.zip": {
+      "type": "node",
+      "entrypointPath": "\\steps\\match-status-api.step.js",
+      "config": {
+        "name": "MatchStatusAPI",
+        "type": "api",
+        "path": "/match/:matchId",
+        "method": "GET",
+        "flows": [
+          "CodeDuelFlow"
+        ],
+        "emits": []
+      },
+      "filePath": "D:\\Samarth\\Programming\\Motia\\code_battle\\battle-engine\\steps\\match-status-api.step.ts"
+    },
+    "node\\steps\\match-expiry.cron.step.zip": {
+      "type": "node",
+      "entrypointPath": "\\steps\\match-expiry.cron.step.js",
+      "config": {
+        "name": "MatchExpiryJob",
+        "type": "cron",
+        "cron": "*/1 * * * *",
+        "flows": [
+          "CodeDuelFlow"
+        ],
+        "emits": []
+      },
+      "filePath": "D:\\Samarth\\Programming\\Motia\\code_battle\\battle-engine\\steps\\match-expiry.cron.step.ts"
+    },
+    "node\\steps\\match-api.step.zip": {
+      "type": "node",
+      "entrypointPath": "\\steps\\match-api.step.js",
+      "config": {
+        "name": "MatchAPI",
+        "type": "api",
+        "path": "/match/:action",
+        "method": "POST",
+        "emits": [
+          "player.joined",
+          "run.code"
+        ],
+        "flows": [
+          "CodeDuelFlow"
+        ]
+      },
+      "filePath": "D:\\Samarth\\Programming\\Motia\\code_battle\\battle-engine\\steps\\match-api.step.ts"
+    },
+    "node\\steps\\game-engine.step.zip": {
+      "type": "node",
+      "entrypointPath": "\\steps\\game-engine.step.js",
+      "config": {
+        "name": "GameEngine",
+        "type": "event",
+        "subscribes": [
+          "player.joined",
+          "code.processed"
+        ],
+        "emits": [],
+        "flows": [
+          "CodeDuelFlow"
+        ]
+      },
+      "filePath": "D:\\Samarth\\Programming\\Motia\\code_battle\\battle-engine\\steps\\game-engine.step.ts"
+    },
+    "node\\steps\\code-runner.step.zip": {
+      "type": "node",
+      "entrypointPath": "\\steps\\code-runner.step.js",
+      "config": {
+        "name": "CodeRunner",
+        "type": "event",
+        "subscribes": [
+          "run.code"
+        ],
+        "emits": [
+          "code.processed"
+        ],
+        "flows": [
+          "CodeDuelFlow"
+        ]
+      },
+      "filePath": "D:\\Samarth\\Programming\\Motia\\code_battle\\battle-engine\\steps\\code-runner.step.ts"
+    }
+  },
+  "streams": {
+    "match": {
+      "name": "match",
+      "storageType": "default"
+    }
+  },
+  "routers": {
+    "node": "router-node.zip"
+  }
+}

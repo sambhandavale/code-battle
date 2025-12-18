@@ -166,18 +166,21 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
 
     useEffect(() => {
         const fetchMatch = async () => {
-        try {
-            const response = await axios.get(`http://localhost:3000/match/${id}`);
-            setMatchData(response.data);
-            if (response.data.problem?.template?.javascript) {
-                setCode(response.data.problem.template.javascript);
+            try {
+                const data = await api.getAction<any>(`/match/${id}`);
+                
+                setMatchData(data);
+                
+                if (data.problem?.template?.javascript) {
+                    setCode(data.problem.template.javascript);
+                }
+            } catch (error) {
+                console.error("Failed to fetch match:", error);
+            } finally {
+                setLoading(false);
             }
-        } catch (error) {
-            console.error("Failed to fetch match:", error);
-        } finally {
-            setLoading(false);
-        }
         };
+
         if (id) fetchMatch();
     }, [id]);
 

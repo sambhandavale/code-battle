@@ -18,8 +18,34 @@ export const handler = async (req: any, context: any) => {
   await connectDB();
 
   try {
+    // const action = req.params?.action || req.pathParams?.action;
+    // const { playerId, matchId, code, language, time } = req.body || {};
+
+    let bodyData = req.body;
+    
+    if (typeof bodyData === 'string') {
+        try {
+            bodyData = JSON.parse(bodyData);
+        } catch (e) {
+            logger.error("JSON Parse Error:", e);
+            return { status: 400, body: { error: "Invalid JSON body" } };
+        }
+    }
+    
+    // Ensure it's an object (handles null/undefined)
+    bodyData = bodyData || {}; 
+
+    // Now use bodyData instead of req.body for destructuring
+    const { playerId, matchId, code, language, time, problemTitle } = bodyData;
+    // ---------------------------------------------------------
+
     const action = req.params?.action || req.pathParams?.action;
-    const { playerId, matchId, code, language, time } = req.body || {};
+
+    // Debugging: Log what the server actually sees
+    logger.info(`API Hit: ${action}`, { 
+        receivedCode: !!code, 
+        bodyType: typeof req.body 
+    });
 
     if (action === 'create') {
         const newMatchId = matchId || `match_${Date.now()}`;

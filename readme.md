@@ -1,4 +1,4 @@
-# CodeBattle <img width="24" height="24" alt="logo" src="https://github.com/user-attachments/assets/af190251-fede-4423-b0fd-b92aac03842e" />
+# <img width="28" height="28" alt="logo" src="https://github.com/user-attachments/assets/af190251-fede-4423-b0fd-b92aac03842e" /> CodeBattle
 
 
 ## Real-Time 1v1 Competitive Coding Platform  
@@ -91,6 +91,10 @@ graph TD
 
     Stream -->|Real-time Updates| User
 ````
+
+## Workflow Diagram
+<img width="1493" height="567" alt="Screenshot 2025-12-19 194848" src="https://github.com/user-attachments/assets/6c5b4ccb-9ab2-4752-be9c-438a5d9d2685" />
+
 
 ---
 
@@ -244,15 +248,19 @@ npm run dev
 
 ---
 
-## 🤖 AI Tools Declaration
+## Acknowledgments
 
-As per hackathon rules:
 
-* **Development Assistance**
-  ChatGPT was used for initial boilerplate generation (MongoDB queries, CSS scaffolding).
+A massive shout-out to the **Motia team**.  
+This project would have required **3× the code** and **2× the infrastructure complexity** without their unified runtime.
 
-* **In-Game Feature**
-  Google Gemini 2.5 is used explicitly as a feature (**The AI Referee**) and was **not** used to generate core business logic.
+Motia made it possible to build APIs, background workers, real-time streams, and AI agents using a **single architectural primitive** — *Steps*.
+
+For more details about the framework that powered this backend, check them out here:
+
+👉 **Motia GitHub Repository:** [https://github.com/motia-dev/motia](https://github.com/MotiaDev/motia)
+
+<img height="24" alt="Frame" src="https://github.com/user-attachments/assets/ab90b343-eb52-44dd-8014-8a61f5ddee3a" />
 
 ---
 

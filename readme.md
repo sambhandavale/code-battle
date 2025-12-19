@@ -204,7 +204,6 @@ Create a `.env` file in **both directories**.
 ```env
 MONGO_URI=mongodb://localhost:27017/codebattle
 GEMINI_API_KEY=your_gemini_key_here
-MOTIA_SECRET=dev_secret
 ```
 
 #### `battle-frontier/.env`

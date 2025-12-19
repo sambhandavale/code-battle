@@ -75,21 +75,39 @@ CodeBattle uses **Motia Steps** to orchestrate APIs, background jobs, AI agents,
 
 ```mermaid
 graph TD
-    User[Client] -->|HTTP POST| API[MatchAPI Step]
-    API -->|Event: player.joined| Engine[GameEngine Step]
+    %% Nodes
+    User([Client / Frontend])
 
     subgraph "Motia Unified Runtime"
-        Engine -->|Event: run.code| Runner[CodeRunner Step]
-        Runner -->|Docker Exec| Piston[Piston Engine]
-        Runner -->|Event: code.processed| Engine
-
-        Engine -->|Event: analyze.code| Referee[AiReferee Step]
-        Referee -->|Gemini API| AI[Gemini 2.5]
-
-        Engine -->|Stream Update| Stream[MatchStream]
+        direction TB
+        API[MatchAPI Step]
+        Engine{GameEngine Step}
+        Runner[CodeRunner Step]
+        Referee[AiReferee Step]
+        Stream[MatchStream]
     end
 
-    Stream -->|Real-time Updates| User
+    subgraph "External Services"
+        Piston[Piston Engine]
+        AI[Gemini 2.5]
+    end
+
+    %% Main Input Flow
+    User ==>|HTTP POST| API
+    API -->|Event: player.joined| Engine
+
+    %% Worker Flows
+    Engine -->|Event: run.code| Runner
+    Runner <-->|Docker Exec| Piston
+    Runner -->|Event: code.processed| Engine
+
+    %% AI Logic
+    Engine -->|Event: analyze.code| Referee
+    Referee -->|API Call| AI
+
+    %% Output Stream
+    Engine -->|State Update| Stream
+    Stream -.->|Real-time WebSocket| User
 ````
 
 ## Workflow Diagram

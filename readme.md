@@ -1,4 +1,4 @@
-# CodeBattle<img width="50" height="50" alt="logo" src="https://github.com/user-attachments/assets/af190251-fede-4423-b0fd-b92aac03842e" />
+# CodeBattle <img width="24" height="24" alt="logo" src="https://github.com/user-attachments/assets/af190251-fede-4423-b0fd-b92aac03842e" />
 
 
 ## Real-Time 1v1 Competitive Coding Platform  

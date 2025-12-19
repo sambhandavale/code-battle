@@ -36,8 +36,6 @@ export const handler = async (event: any, { emit, logger }: any) => {
     const match = await MatchModel.findOne({ matchId });
     if (!match) throw new Error("Match not found");
 
-    // 🛑 SAFETY CHECK:
-    // If they are trying to submit to win, but the match isn't RACING (e.g. Expired), fail fast.
     if (action === 'SUBMIT_SOLUTION' && match.status !== 'RACING') {
         throw new Error(`Cannot submit. Match is ${match.status}`);
     }
@@ -48,7 +46,6 @@ export const handler = async (event: any, { emit, logger }: any) => {
     let casesToRun = question.test_cases;
     
     if (action === 'RUN_TESTS') {
-        // Run subset for quick feedback
         const limit = Math.ceil(casesToRun.length * 0.25) || 1; 
         casesToRun = casesToRun.slice(0, limit);
         logger.info(`JUDGE: Running subset (${limit}/${question.test_cases.length}) for ${playerId}`);
@@ -56,7 +53,6 @@ export const handler = async (event: any, { emit, logger }: any) => {
         logger.info(`JUDGE: Running ALL (${casesToRun.length}) for ${playerId} submission`);
     }
 
-    // --- PISTON EXECUTION LOOP ---
     for (let i = 0; i < casesToRun.length; i++) {
         const testCase = casesToRun[i];
         const result = await runPiston(code, language, version, testCase, logger);
@@ -74,16 +70,12 @@ export const handler = async (event: any, { emit, logger }: any) => {
 
         if (result.status !== Verdict.ACCEPTED) {
             overallSuccess = false;
-            // For submission, we can break early on failure to save time
-            // But usually, users like to see which tests passed, so we might keep running.
-            // Here we break on COMPILE_ERROR only.
             if (result.status === Verdict.COMPILE_ERROR) {
                 errorMsg = result.stderr;
                 break; 
             }
         }
 
-        // Slight delay to be nice to the free API
         if (i < casesToRun.length - 1) await sleep(300);
     }
 
@@ -106,7 +98,6 @@ export const handler = async (event: any, { emit, logger }: any) => {
   await emit({ topic: 'code.processed', data: resultData });
 };
 
-// --- HELPER FUNCTION ---
 async function runPiston(code: string, language: string, version: string, testCase: any, logger?: any) {
     const pistonLang = languages.find((lang)=>lang.pistonLang == language)?.pistonLang
     const ver = languages.find((lang)=>lang.pistonLang == language)?.version;

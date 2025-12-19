@@ -1,5 +1,21 @@
 {
   "steps": {
+    "node\\steps\\match-timer.step.zip": {
+      "type": "node",
+      "entrypointPath": "\\steps\\match-timer.step.js",
+      "config": {
+        "name": "MatchTimer",
+        "type": "event",
+        "subscribes": [
+          "match.started"
+        ],
+        "emits": [],
+        "flows": [
+          "CodeDuelFlow"
+        ]
+      },
+      "filePath": "D:\\Samarth\\Programming\\Motia\\code_battle\\battle-engine\\steps\\match-timer.step.ts"
+    },
     "node\\steps\\match-status-api.step.zip": {
       "type": "node",
       "entrypointPath": "\\steps\\match-status-api.step.js",
@@ -15,20 +31,6 @@
       },
       "filePath": "D:\\Samarth\\Programming\\Motia\\code_battle\\battle-engine\\steps\\match-status-api.step.ts"
     },
-    "node\\steps\\match-expiry.cron.step.zip": {
-      "type": "node",
-      "entrypointPath": "\\steps\\match-expiry.cron.step.js",
-      "config": {
-        "name": "MatchExpiryJob",
-        "type": "cron",
-        "cron": "*/1 * * * *",
-        "flows": [
-          "CodeDuelFlow"
-        ],
-        "emits": []
-      },
-      "filePath": "D:\\Samarth\\Programming\\Motia\\code_battle\\battle-engine\\steps\\match-expiry.cron.step.ts"
-    },
     "node\\steps\\match-api.step.zip": {
       "type": "node",
       "entrypointPath": "\\steps\\match-api.step.js",
@@ -39,7 +41,8 @@
         "method": "POST",
         "emits": [
           "player.joined",
-          "run.code"
+          "run.code",
+          "analyze.code"
         ],
         "flows": [
           "CodeDuelFlow"
@@ -57,7 +60,9 @@
           "player.joined",
           "code.processed"
         ],
-        "emits": [],
+        "emits": [
+          "match.started"
+        ],
         "flows": [
           "CodeDuelFlow"
         ]
@@ -81,6 +86,22 @@
         ]
       },
       "filePath": "D:\\Samarth\\Programming\\Motia\\code_battle\\battle-engine\\steps\\code-runner.step.ts"
+    },
+    "node\\steps\\code-analyser.step.zip": {
+      "type": "node",
+      "entrypointPath": "\\steps\\code-analyser.step.js",
+      "config": {
+        "name": "AiReferee",
+        "type": "event",
+        "subscribes": [
+          "analyze.code"
+        ],
+        "emits": [],
+        "flows": [
+          "CodeDuelFlow"
+        ]
+      },
+      "filePath": "D:\\Samarth\\Programming\\Motia\\code_battle\\battle-engine\\steps\\code-analyser.step.ts"
     }
   },
   "streams": {

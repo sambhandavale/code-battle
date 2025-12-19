@@ -6,7 +6,7 @@ export const config: StepConfig = {
   name: 'GameEngine',
   type: 'event',
   subscribes: ['player.joined', 'code.processed'],
-  emits: ['match.started'], // 👈 NEW: Triggers the timer
+  emits: ['match.started'],
   flows: ['CodeDuelFlow']
 };
 
@@ -25,13 +25,9 @@ export const handler = async (event: any, context: any) => {
   const isJoinEvent = (topic === 'player.joined') || (payload.playerId && !payload.action);
   const isCodeEvent = (topic === 'code.processed') || (payload.action !== undefined);
 
-  // ---------------------------------------------------------
-  // 1. PLAYER JOIN & RACE START LOGIC
-  // ---------------------------------------------------------
   if (isJoinEvent) {
     const preMatch = await MatchModel.findOne({ matchId });
-    
-    // Check if we are waiting and now have enough players (2)
+
     if (preMatch && preMatch.status === 'WAITING' && preMatch.players.length >= 2) {
         logger.info(`ENGINE: Match ${matchId} has 2 players. Starting Race...`);
 
@@ -46,8 +42,7 @@ export const handler = async (event: any, context: any) => {
 
         if (updatedGame) {
              logger.info(`RACE STARTED! Ends at: ${new Date(endTime).toISOString()}`);
-             
-             // A. Broadcast START to Frontend
+
              if (streams.match) {
                 await streams.match.set(matchId, 'message', { 
                     type: 'START_RACE', 
@@ -56,7 +51,6 @@ export const handler = async (event: any, context: any) => {
                 });
              }
 
-             // B. Start the Durable Timer (Replaces Cron)
              await emit({ 
                  topic: 'match.started', 
                  data: { matchId, duration: preMatch.duration } 
@@ -65,14 +59,10 @@ export const handler = async (event: any, context: any) => {
     }
   }
 
-  // ---------------------------------------------------------
-  // 2. CODE EXECUTION FEEDBACK & WIN LOGIC
-  // ---------------------------------------------------------
   if (isCodeEvent) {
      const result = payload; 
      logger.info(`ENGINE: Result for ${matchId} (${result.action}) - Success: ${result.success}`);
 
-     // Always Stream Feedback
      if (streams.match) {
          await streams.match.set(matchId, 'message', { 
             type: 'CODE_FEEDBACK',
@@ -85,9 +75,7 @@ export const handler = async (event: any, context: any) => {
          });
      }
 
-     // Handle Win Condition
      if (result.action === 'SUBMIT_SOLUTION' && result.success) {
-        // Atomic Win Claim
         const winningGame = await MatchModel.findOneAndUpdate(
             { matchId, status: 'RACING' },
             { $set: { status: 'FINISHED', winnerId: result.playerId } },

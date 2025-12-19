@@ -23,16 +23,11 @@ export const handler = async (event: any, { logger, streams }: any) => {
 
   logger.info(`TIMER: Started for ${matchId}. Sleeping for ${duration / 1000}s...`);
 
-  // 💤 The "Durable" Wait
-  // We wait for the specific duration of THIS match.
   await sleep(duration);
 
-  // ⏰ Wake up! Time is up.
   await connectDB();
   logger.info(`TIMER: Woke up for ${matchId}. Checking status...`);
 
-  // Check if the match is still running
-  // We use findOneAndUpdate to atomically close it if it's still RACING
   const match = await MatchModel.findOneAndUpdate(
       { matchId, status: 'RACING' },
       { $set: { status: 'EXPIRED' } },
@@ -42,7 +37,6 @@ export const handler = async (event: any, { logger, streams }: any) => {
   if (match) {
       logger.info(`TIMER: Time limit exceeded for ${matchId}. Expiring...`);
 
-      // Notify Frontend
       if (streams.match) {
           await streams.match.set(matchId, 'message', { 
               type: 'GAME_OVER', 

@@ -167,6 +167,7 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
             setMatchResult('YOU WON');
         } else if(latestMessage.winner === null){
             toast("Its a draw", { icon: "🤝", duration: 5000 });
+            setMatchResult('ITS A DRAW');
         }
         else {
             toast("💀 You Lost", { icon: "🥀", duration: 2500 });
@@ -176,13 +177,13 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
 
         // D: Handle Race Start
         if (latestMessage.type === 'START_RACE') {
-        setMatchData((prev: any) => prev ? ({ 
-            ...prev, 
-            status: 'RACING', 
-            startTime: latestMessage.startTime || Date.now(), 
-            endTime: latestMessage.endTime || 0 
-        }) : null);
-        toast("🏁 Race Started!", { icon: "go" });
+            setMatchData((prev: any) => prev ? ({ 
+                ...prev, 
+                status: 'RACING', 
+                startTime: latestMessage.startTime || Date.now(), 
+                endTime: latestMessage.endTime || 0 
+            }) : null);
+            toast("🏁 Race Started!", { icon: "" });
         }
 
     }, [latestMessage, myNickname]);
@@ -520,7 +521,7 @@ export default function BattlePage({ params }: { params: Promise<{ id: string }>
                     <PlayerCard name={isSpectator ? players[1] : myNickname} isOpponent={false} timeLeft={timeLeft} status={status} />
 
                     <div className="bg-white border-t border-slate-200 p-4 flex items-center justify-between shrink-0">
-                        {!isSpectator && (
+                        {matchResult && !isSpectator && (
                             <button 
                                 onClick={handleAnalyze} 
                                 disabled={analyzing}

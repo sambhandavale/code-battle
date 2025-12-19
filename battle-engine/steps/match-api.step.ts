@@ -21,7 +21,6 @@ export const handler = async (req: any, context: any) => {
     const action = req.params?.action || req.pathParams?.action;
     const { playerId, matchId, code, language, time } = req.body || {};
 
-    // --- CREATE MATCH ---
     if (action === 'create') {
         const newMatchId = matchId || `match_${Date.now()}`;
         
@@ -64,20 +63,30 @@ export const handler = async (req: any, context: any) => {
         };
     }
 
-    // --- JOIN MATCH ---
     if (action === 'join') {
-        const game = await MatchModel.findOne({ matchId });
-        if (!game) return { status: 404, body: { error: "Match not found" } };
+        let game = await MatchModel.findOneAndUpdate(
+            { matchId, status: 'WAITING' },
+            { $addToSet: { players: playerId } },
+            { new: true } 
+        );
 
-        if (!game.players.includes(playerId)) {
-            game.players.push(playerId);
-            await game.save();
+        if (!game) {
+            game = await MatchModel.findOne({ matchId });
+            
+            if (!game) {
+                return { status: 404, body: { error: "Match not found" } };
+            }
+
+            const isAlreadyIn = game.players.includes(playerId);
+            
+            if (!isAlreadyIn) {
+                return { status: 400, body: { error: `Cannot join. Match is ${game.status}` } };
+            }
         }
 
         const problem = await Question.findById(game.problemId);
-        logger.info(`DB: Added player ${playerId} to ${matchId}`);
+        logger.info(`DB: Player ${playerId} active in ${matchId}`);
         
-        // Notify Engine
         await emit({ topic: 'player.joined', data: { matchId, playerId } });
 
         if (streams?.match) {
@@ -99,14 +108,12 @@ export const handler = async (req: any, context: any) => {
         };
     }
 
-    // --- SUBMIT / RUN ---
     if (action === 'submit' || action === 'run') {
         const requestType = req.body?.type || (action === 'run' ? 'RUN_TESTS' : 'SUBMIT_SOLUTION');
         
         const match = await MatchModel.findOne({ matchId });
         if (!match) return { status: 404, body: { error: "Match not found" } };
 
-        // Validation: Only allow SUBMIT if RACING. (Run is allowed for practice)
         if (requestType === 'SUBMIT_SOLUTION' && match.status !== 'RACING') {
              return { status: 400, body: { error: `Cannot submit. Match is ${match.status}` } };
         }
@@ -134,13 +141,11 @@ export const handler = async (req: any, context: any) => {
              return { status: 400, body: { error: "No code provided for analysis." } };
         }
 
-        // Emit an event to trigger the AI Worker
-        // We don't wait for the AI here (it's async). We just say "Analysis Started".
         await emit({ 
             topic: 'analyze.code', 
             data: { 
-                matchId, // Optional: if you want to broadcast to the match room
-                playerId, // The user asking for help
+                matchId,
+                playerId,
                 code,
                 language: language || 'python',
                 problemTitle: problemTitle || 'Unknown Problem'

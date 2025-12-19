@@ -9,7 +9,7 @@ export const config: StepConfig = {
   type: 'event',
   subscribes: ['analyze.code'],
   emits: [],
-  flows: ['CodeDuelFlow']
+  flows: ['CodeDuelFlow'],
 };
 
 export const handler = async (event: any, { streams, logger }: any) => {
@@ -20,13 +20,9 @@ export const handler = async (event: any, { streams, logger }: any) => {
   let analysisResult = "";
 
   try {
-    // 1. Initialize Gemini
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
-    
-    // Use flash for speed (critical in hackathons/real-time apps)
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    // 2. The "Coach" Prompt
     const prompt = `
     You are an expert ICPC World Finalist Coach. Analyze this ${language} submission for the problem "${problemTitle || 'Unknown'}".
     
@@ -51,14 +47,12 @@ export const handler = async (event: any, { streams, logger }: any) => {
     * <One sentence summary: "Solid AC solution" or "Risk of TLE on large inputs", etc.>
     `;
 
-    // 3. Generate Content
     const result = await model.generateContent(prompt);
     analysisResult = result.response.text();
 
   } catch (error) {
     logger.error(`⚠️ Gemini Failed: ${error}`);
     
-    // Fallback Heuristic (So the demo never fails)
     const complexity = code.includes('for') && code.split('for').length > 2 ? "O(n²)" : "O(n)";
     analysisResult = `
     ### 🤖 Automated Fallback Review
@@ -72,12 +66,11 @@ export const handler = async (event: any, { streams, logger }: any) => {
 
   logger.info(`AI: Analysis complete for ${playerId}`);
 
-  // 4. Stream result to Frontend
   if (streams.match && matchId) {
       await streams.match.set(matchId, 'message', {
           type: 'AI_ANALYSIS',
           playerId,
-          text: analysisResult, // Markdown formatted
+          text: analysisResult,
           timestamp: Date.now()
       });
   }

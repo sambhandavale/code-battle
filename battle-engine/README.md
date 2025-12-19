@@ -1,83 +1,94 @@
-# battle-engine
+This README focuses on the Motia architecture, the Steps, and the event logic.
 
-A Motia project created with the starter template.
+# ⚙️ CodeBattle Engine (Backend)
+
+**The Event-Driven Core of CodeBattle**
+*Powered by Motia • Piston • MongoDB • Gemini*
+
+This directory contains the server-side logic for CodeBattle. It utilizes **Motia** to replace a traditional microservices stack (API Gateway + Redis + Workers) with a unified "Steps" architecture.
+
+---
 
 ## What is Motia?
 
 Motia is an open-source, unified backend framework that eliminates runtime fragmentation by bringing **APIs, background jobs, queueing, streaming, state, workflows, AI agents, observability, scaling, and deployment** into one unified system using a single core primitive, the **Step**.
 
-## Quick Start
+---
+
+## 🏗️ Architecture
+
+The backend is composed of discrete **Steps** that communicate via events.
+
+<img width="1493" height="567" alt="Screenshot 2025-12-19 194848" src="https://github.com/user-attachments/assets/b169e1b1-a3e9-477b-99cd-83d53b186458" />
+
+### 📂 File Structure Explained (`src/`)
+
+Based on `src/steps` and `src/models`:
+
+| Directory | File | Description |
+| :--- | :--- | :--- |
+| **📂 steps** | `match-api.step.ts` | **Entry Point:** HTTP API for creating/joining matches and submitting code. |
+| | `game-engine.step.ts` | **The Brain:** Manages game state (`WAITING` → `RACING` → `FINISHED`) and determines winners. |
+| | `code-runner.step.ts` | **The Worker:** Async listener that sends code to the Piston sandbox (Docker). |
+| | `ai-referee.step.ts` | **The Intel:** Sends completed code to Google Gemini for O(N) complexity analysis. |
+| | `match-timer.step.ts` | **The Clock:** Handles match duration and auto-expiration events. |
+| | `match.stream.ts` | **The Broadcast:** Pushes real-time state updates to the frontend via WebSockets. |
+| **📂 models** | `Match.ts` | MongoDB schema for match state, players, and winners. |
+| | `Question.ts` | Database of algorithm problems and test cases. |
+| **📂 utils** | `lang.ts` | Mappings between frontend language IDs and Piston runtime versions. |
+
+---
+
+## 🚀 Setup & Run
+
+### 1. Prerequisites
+* Node.js 18+
+* MongoDB Running (Local or Atlas)
+* Motia CLI (optional, but recommended)
+
+### 2. Install Dependencies
+```bash
+cd battle-engine
+npm install
+
+```
+
+### 3. Environment Variables
+
+Create a `.env` file in `battle-engine/`:
+
+```env
+MONGO_URI=mongodb://localhost:27017/codebattle
+GEMINI_API_KEY=your_gemini_key_here
+
+```
+
+### 4. Run the Engine
 
 ```bash
-# Start the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-```
-
-This starts the Motia runtime and the **Workbench** - a powerful UI for developing and debugging your workflows. By default, it's available at [`http://localhost:3000`](http://localhost:3000).
-
-```bash
-# Test your first endpoint
-curl http://localhost:3000/hello
-```
-
-## Step Types
-
-Every Step has a `type` that defines how it triggers:
-
-| Type | When it runs | Use case |
-|------|--------------|----------|
-| **`api`** | HTTP request | REST APIs, webhooks |
-| **`event`** | Event emitted | Background jobs, workflows |
-| **`cron`** | Schedule | Cleanup, reports, reminders |
-
-## Development Commands
-
-```bash
-# Start Workbench and development server
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-
-# Start production server (without hot reload)
-npm run start
-# or
-yarn start
-# or
-pnpm start
-
-# Generate TypeScript types from Step configs
-npm run generate-types
-# or
-yarn generate-types
-# or
-pnpm generate-types
-
-# Build project for deployment
-npm run build
-# or
-yarn build
-# or
-pnpm build
-```
-
-## Project Structure
 
 ```
-steps/              # Your Step definitions (or use src/)
-motia.config.ts     # Motia configuration
-```
 
-Steps are auto-discovered from your `steps/` or `src/` directories - no manual registration required.
+* **API URL:** `http://localhost:3000`
+* **Motia Dashboard:** `http://localhost:3000` (Great for visualizing the event flow!)
 
-## Learn More
+---
 
-- [Documentation](https://motia.dev/docs) - Complete guides and API reference
-- [Quick Start Guide](https://motia.dev/docs/getting-started/quick-start) - Detailed getting started tutorial
-- [Core Concepts](https://motia.dev/docs/concepts/overview) - Learn about Steps and Motia architecture
-- [Discord Community](https://discord.gg/motia) - Get help and connect with other developers
+## 🛠️ Key Technologies
+
+* **Framework:** [Motia](https://www.google.com/search?q=https://github.com/motia/motia) (Event Orchestration)
+* **Database:** MongoDB (Mongoose)
+* **Execution:** Piston (Remote Code Execution API)
+* **AI:** Google Gemini 2.5 Flash
+
+---
+
+## 🏆 Backend Reloaded Context
+
+This engine demonstrates how **Motia Steps** allow us to handle:
+
+1. **Race Conditions:** Atomic joins in `match-api`.
+2. **Async Processing:** Non-blocking code execution in `code-runner`.
+3. **Real-Time Data:** Streaming updates via `match.stream`.
+All within a single TypeScript runtime.

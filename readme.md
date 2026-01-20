@@ -2,8 +2,6 @@
 
 
 ## Real-Time 1v1 Competitive Coding Platform  
-**Built on Motia — One Primitive. Infinite Scalability.**
-
 CodeBattle transforms competitive programming from a solitary grind into a **live, high-stakes 1v1 e-sport**.  
 Unlike traditional platforms where problems are solved asynchronously, CodeBattle enables **synchronous duels** where speed, accuracy, and strategy determine the winner in real time.
 
@@ -280,7 +278,4 @@ For more details about the framework that powered this backend, check them out h
 <img height="24" alt="Frame" src="https://github.com/user-attachments/assets/ab90b343-eb52-44dd-8014-8a61f5ddee3a" />
 
 ---
-
-## ❤️ Built For Backend Reloaded 2025
-
 **One runtime. One primitive. Infinite possibilities.**
